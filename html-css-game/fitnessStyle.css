@@ -1,0 +1,107 @@
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+  font-family: Inter, Arial, sans-serif;
+  background: linear-gradient(180deg, #fff7ed 0%, #fee2b3 100%);
+  color: #1f2937;
+}
+
+body {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.page {
+  width: 100%;
+  max-width: 520px;
+}
+
+.card {
+  width: 100%;
+  padding: 28px;
+  border-radius: 30px;
+  background: #ffffff;
+  border: 1px solid #fdba74;
+  box-shadow: 0 22px 55px rgba(15, 23, 42, 0.12);
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+h1 {
+  margin: 0;
+  font-size: 2rem;
+}
+
+.meta {
+  margin-top: 8px;
+  color: #f97316;
+}
+
+.goal {
+  padding: 10px 16px;
+  border-radius: 999px;
+  background: #fdba74;
+  color: #7c2d12;
+  font-weight: 700;
+}
+
+.meter {
+  position: relative;
+  height: 18px;
+  border-radius: 999px;
+  background: #fde68a;
+  overflow: hidden;
+  margin-bottom: 24px;
+}
+
+.meter-fill {
+  content: "";
+  display: block;
+  width: 80%;
+  height: 100%;
+  background: linear-gradient(90deg, #fb923c, #f97316);
+  border-radius: 999px;
+}
+
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.metric {
+  padding: 18px 14px;
+  border-radius: 22px;
+  background: #ffedd5;
+  text-align: center;
+}
+
+.metric strong {
+  display: block;
+  font-size: 1.4rem;
+}
+
+.metric span {
+  margin-top: 8px;
+  display: block;
+  color: #c2410c;
+}
+
+@media (max-width: 520px) {
+  .metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

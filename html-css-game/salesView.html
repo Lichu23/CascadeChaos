@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sales View</title>
+    <link rel="stylesheet" href="salesView.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="brand">Sales Studio</div>
+        <nav>
+          <a class="active">Overview</a>
+          <a>Leads</a>
+          <a>Deals</a>
+          <a>Reports</a>
+        </nav>
+      </aside>
+
+      <main class="view-content">
+        <header class="topbar">
+          <div>
+            <h1>Weekly Sales</h1>
+            <p>Performance for April 2026</p>
+          </div>
+          <button>Export</button>
+        </header>
+
+        <section class="stats-row">
+          <article class="stat-panel">
+            <p class="label">Revenue</p>
+            <p class="value">$42.3K</p>
+          </article>
+          <article class="stat-panel">
+            <p class="label">Conversion</p>
+            <p class="value">8.9%</p>
+          </article>
+          <article class="stat-panel">
+            <p class="label">New leads</p>
+            <p class="value">124</p>
+          </article>
+          <article class="stat-panel">
+            <p class="label">Closed</p>
+            <p class="value">26</p>
+          </article>
+        </section>
+
+        <section class="chart-panel">
+          <div class="chart-header">
+            <h2>Revenue trend</h2>
+            <span>+12% this week</span>
+          </div>
+          <div class="chart-placeholder">Chart area</div>
+        </section>
+
+        <section class="table-panel">
+          <div class="table-title">Top deals</div>
+          <div class="table-row header">
+            <span>Client</span>
+            <span>Status</span>
+            <span>Value</span>
+          </div>
+          <div class="table-row"><span>Acme Co</span><span>Won</span><span>$12,000</span></div>
+          <div class="table-row"><span>Zen Labs</span><span>Proposal</span><span>$8,500</span></div>
+          <div class="table-row"><span>Northway</span><span>Negotiating</span><span>$5,200</span></div>
+        </section>
+      </main>
+    </div>
+  </body>
+</html>
