@@ -25,13 +25,12 @@ export default function Home() {
           >
             Start Practice
           </Link>
-          <button
-            className="inline-flex h-12 cursor-not-allowed items-center justify-center rounded-md border border-zinc-800 px-5 text-sm font-semibold text-zinc-500"
-            disabled
-            type="button"
+          <Link
+            className="inline-flex h-12 items-center justify-center rounded-md border border-zinc-700 px-5 text-sm font-semibold text-zinc-100 transition hover:bg-zinc-900"
+            href="/join"
           >
-            Multiplayer Soon
-          </button>
+            Create or Join Room
+          </Link>
         </div>
 
         <div className="grid gap-3 border-t border-zinc-800 pt-6 text-sm text-zinc-400 sm:grid-cols-3">
