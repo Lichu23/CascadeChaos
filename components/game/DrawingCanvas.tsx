@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/Button";
 
 type DrawingCanvasProps = {
   disabled?: boolean;
+  onDraftChange?: (dataUrl: string) => void;
   onSubmit: (dataUrl: string) => void;
 };
 
@@ -57,11 +58,12 @@ const colorSwatches = [
 ];
 
 export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>(
-function DrawingCanvas({ disabled = false, onSubmit }, ref) {
+function DrawingCanvas({ disabled = false, onDraftChange, onSubmit }, ref) {
   const canvasElementRef = useRef<HTMLCanvasElement | null>(null);
   const shellRef = useRef<HTMLDivElement | null>(null);
   const fabricCanvasRef = useRef<import("fabric").Canvas | null>(null);
   const fabricModuleRef = useRef<typeof import("fabric") | null>(null);
+  const onDraftChangeRef = useRef(onDraftChange);
   const brushOptionsRef = useRef({
     brushColor: "#111827",
     brushSize: 5,
@@ -72,6 +74,10 @@ function DrawingCanvas({ disabled = false, onSubmit }, ref) {
   const [brushSize, setBrushSize] = useState(5);
   const [brushColor, setBrushColor] = useState("#111827");
   const [hexInput, setHexInput] = useState("#111827");
+
+  useEffect(() => {
+    onDraftChangeRef.current = onDraftChange;
+  }, [onDraftChange]);
 
   useEffect(() => {
     brushOptionsRef.current = { brushColor, brushSize, disabled, tool };
@@ -98,6 +104,16 @@ function DrawingCanvas({ disabled = false, onSubmit }, ref) {
       fabricCanvasRef.current = canvas;
       configureBrush({ canvas, fabric, ...brushOptionsRef.current });
 
+      const emitDraft = () => {
+        if (brushOptionsRef.current.disabled) {
+          return;
+        }
+
+        onDraftChangeRef.current?.(canvas.toDataURL({ format: "png", multiplier: 1 }));
+      };
+
+      canvas.on("path:created", emitDraft);
+
       const resize = () => {
         if (!shellRef.current) {
           return;
@@ -114,6 +130,7 @@ function DrawingCanvas({ disabled = false, onSubmit }, ref) {
       observer.observe(shellRef.current);
 
       return () => {
+        canvas.off("path:created", emitDraft);
         observer.disconnect();
         canvas.dispose();
       };
@@ -178,6 +195,7 @@ function DrawingCanvas({ disabled = false, onSubmit }, ref) {
     canvas.clear();
     canvas.backgroundColor = "#ffffff";
     canvas.renderAll();
+    onDraftChangeRef.current?.(canvas.toDataURL({ format: "png", multiplier: 1 }));
   };
 
   return (
@@ -249,7 +267,7 @@ function DrawingCanvas({ disabled = false, onSubmit }, ref) {
           <Button className="h-9" disabled={disabled} onClick={clearCanvas} variant="ghost">
             Clear
           </Button>
-          <Button className="h-9" onClick={submitDrawing}>
+          <Button className="h-9" disabled={disabled} onClick={submitDrawing}>
             Submit
           </Button>
         </div>

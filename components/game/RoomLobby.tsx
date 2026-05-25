@@ -6,6 +6,10 @@ import { ChangeEvent, useEffect, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
+import { MultiplayerDrawingRound } from "@/components/game/MultiplayerDrawingRound";
+import { MultiplayerReveal } from "@/components/game/MultiplayerReveal";
+import { MultiplayerScorePlaceholder } from "@/components/game/MultiplayerScorePlaceholder";
+import { MultiplayerVoting } from "@/components/game/MultiplayerVoting";
 import { getGuestId, getStoredUsername } from "@/lib/guest/guest-id";
 import { getSocket } from "@/lib/socket/client";
 import type { PublicRoom, RoomError, StartBlockedPayload } from "@/types/room";
@@ -22,6 +26,7 @@ export function RoomLobby({ roomCode }: RoomLobbyProps) {
   const [username, setUsername] = useState("");
   const [room, setRoom] = useState<PublicRoom | null>(null);
   const [modal, setModal] = useState<{ title: string; message: string } | null>(null);
+  const [blockingError, setBlockingError] = useState<RoomError | null>(null);
   const [connected, setConnected] = useState(false);
 
   const activePlayers = useMemo(
@@ -30,7 +35,9 @@ export function RoomLobby({ roomCode }: RoomLobbyProps) {
   );
   const currentPlayer = room?.players.find((player) => player.guestId === guestId);
   const isHost = currentPlayer?.isHost ?? false;
-  const canStart = isHost && activePlayers.length >= MIN_PLAYERS_TO_START;
+  const readyPlayers = activePlayers.filter((player) => player.ready);
+  const isCurrentPlayerReady = currentPlayer?.ready ?? false;
+  const hasEnoughPlayers = activePlayers.length >= MIN_PLAYERS_TO_START;
 
   useEffect(() => {
     const storedName = getStoredUsername();
@@ -63,10 +70,17 @@ export function RoomLobby({ roomCode }: RoomLobbyProps) {
     };
 
     const handleRoomState = (nextRoom: PublicRoom) => {
+      setBlockingError(null);
       setRoom(nextRoom);
     };
 
     const handleRoomError = (error: RoomError) => {
+      if (error.code === "ROOM_NOT_FOUND" || error.code === "ROOM_ALREADY_STARTED") {
+        setBlockingError(error);
+        setRoom(null);
+        return;
+      }
+
       setModal({ title: "Room error", message: error.message });
     };
 
@@ -76,10 +90,17 @@ export function RoomLobby({ roomCode }: RoomLobbyProps) {
 
     const handleStarted = (nextRoom: PublicRoom) => {
       setRoom(nextRoom);
-      setModal({
-        title: "Game started",
-        message: "The lobby server is working. The multiplayer drawing round comes next.",
-      });
+      setModal(null);
+    };
+
+    const handleVotingStarted = ({ room: nextRoom }: { room: PublicRoom }) => {
+      setRoom(nextRoom);
+      setModal(null);
+    };
+
+    const handleRoundAdvanced = ({ room: nextRoom }: { room: PublicRoom }) => {
+      setRoom(nextRoom);
+      setModal(null);
     };
 
     socket.on("connect", handleConnect);
@@ -89,6 +110,8 @@ export function RoomLobby({ roomCode }: RoomLobbyProps) {
     socket.on("room:error", handleRoomError);
     socket.on("game:start-blocked", handleStartBlocked);
     socket.on("game:started", handleStarted);
+    socket.on("voting:started", handleVotingStarted);
+    socket.on("round:advanced", handleRoundAdvanced);
 
     socket.emit("room:join", {
       guestId: localGuestId,
@@ -104,6 +127,8 @@ export function RoomLobby({ roomCode }: RoomLobbyProps) {
       socket.off("room:error", handleRoomError);
       socket.off("game:start-blocked", handleStartBlocked);
       socket.off("game:started", handleStarted);
+      socket.off("voting:started", handleVotingStarted);
+      socket.off("round:advanced", handleRoundAdvanced);
     };
   }, [roomCode, router]);
 
@@ -126,21 +151,68 @@ export function RoomLobby({ roomCode }: RoomLobbyProps) {
     };
   };
 
-  const startGame = () => {
+  const toggleReady = () => {
     if (!room || !guestId) {
       return;
     }
 
-    if (activePlayers.length < MIN_PLAYERS_TO_START) {
-      setModal({
-        title: "Need more players",
-        message: `Need at least ${MIN_PLAYERS_TO_START} players to start.`,
-      });
-      return;
-    }
-
-    getSocket().emit("game:start", { guestId, roomCode });
+    getSocket().emit("room:set-ready", {
+      guestId,
+      ready: !isCurrentPlayerReady,
+      roomCode,
+    });
   };
+
+  if (room?.phase === "drawing" && room.round && guestId) {
+    return (
+      <MultiplayerDrawingRound
+        guestId={guestId}
+        key={`${room.code}-${room.round.number}-${room.round.challengeId}`}
+        room={room}
+      />
+    );
+  }
+
+  if (room?.phase === "reveal" && room.round) {
+    return (
+      <MultiplayerReveal
+        key={`${room.code}-${room.round.number}-reveal`}
+        room={room}
+      />
+    );
+  }
+
+  if (room?.phase === "voting" && room.round && guestId) {
+    return (
+      <MultiplayerVoting
+        guestId={guestId}
+        key={`${room.code}-${room.round.number}-voting`}
+        room={room}
+      />
+    );
+  }
+
+  if ((room?.phase === "leaderboard" || room?.phase === "ended") && guestId) {
+    return <MultiplayerScorePlaceholder guestId={guestId} room={room} />;
+  }
+
+  if (blockingError) {
+    return (
+      <main className="grid min-h-screen place-items-center bg-zinc-950 px-4 py-10 text-zinc-50">
+        <section className="w-full max-w-md rounded-md border border-zinc-800 bg-zinc-900 p-5">
+          <p className="text-sm font-semibold uppercase text-amber-300">Room unavailable</p>
+          <h1 className="mt-2 text-3xl font-semibold text-zinc-50">{roomCode}</h1>
+          <p className="mt-3 leading-7 text-zinc-300">{blockingError.message}</p>
+          <Link
+            className="mt-5 inline-flex h-11 items-center justify-center rounded-md bg-emerald-500 px-4 text-sm font-semibold text-zinc-950 transition hover:bg-emerald-400"
+            href="/join"
+          >
+            Create or Join Room
+          </Link>
+        </section>
+      </main>
+    );
+  }
 
   return (
     <>
@@ -165,9 +237,6 @@ export function RoomLobby({ roomCode }: RoomLobbyProps) {
               >
                 Join Another
               </Link>
-              <Button disabled={!isHost || !room} onClick={startGame}>
-                Start Game
-              </Button>
             </div>
           </header>
 
@@ -177,16 +246,20 @@ export function RoomLobby({ roomCode }: RoomLobbyProps) {
                 <div>
                   <h2 className="text-xl font-semibold">Players</h2>
                   <p className="mt-1 text-sm text-zinc-400">
-                    {activePlayers.length}/{MIN_PLAYERS_TO_START} active players required
+                    {activePlayers.length}/{MIN_PLAYERS_TO_START} active players required · {readyPlayers.length}/{activePlayers.length} ready
                   </p>
                 </div>
-                {!canStart ? (
+                {!hasEnoughPlayers ? (
                   <span className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm font-semibold text-amber-200">
                     Need at least 3 players
                   </span>
+                ) : readyPlayers.length < activePlayers.length ? (
+                  <span className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm font-semibold text-amber-200">
+                    Waiting for ready
+                  </span>
                 ) : (
                   <span className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm font-semibold text-emerald-200">
-                    Ready to start
+                    Starting game
                   </span>
                 )}
               </div>
@@ -212,6 +285,24 @@ export function RoomLobby({ roomCode }: RoomLobbyProps) {
                           Host
                         </span>
                       ) : null}
+                      {player.guestId === guestId ? (
+                        <Button
+                          className="h-8 px-3 text-xs"
+                          disabled={!hasEnoughPlayers}
+                          onClick={toggleReady}
+                          variant={player.ready ? "primary" : "secondary"}
+                        >
+                          {player.ready ? "Ready" : "Not Ready"}
+                        </Button>
+                      ) : player.ready ? (
+                        <span className="rounded bg-sky-400 px-2 py-1 text-xs font-bold uppercase text-zinc-950">
+                          Ready
+                        </span>
+                      ) : (
+                        <span className="rounded border border-zinc-700 px-2 py-1 text-xs font-bold uppercase text-zinc-400">
+                          Not ready
+                        </span>
+                      )}
                     </div>
                   </article>
                 ))}

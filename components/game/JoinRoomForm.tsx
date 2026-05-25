@@ -122,7 +122,7 @@ export function JoinRoomForm() {
             placeholder="ABCDE"
             value={roomCode}
           />
-          <Button disabled={pendingAction !== null} type="submit" variant="secondary">
+          <Button disabled={pendingAction !== null || cleanCode.length < 4} type="submit" variant="secondary">
             {pendingAction === "join" ? "Joining..." : "Join Room"}
           </Button>
         </form>
