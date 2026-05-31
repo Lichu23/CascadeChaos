@@ -89,11 +89,20 @@ export function JoinRoomForm() {
 
   return (
     <>
-      <section className="w-full max-w-xl rounded-md border border-zinc-800 bg-zinc-900 p-5">
+      <section className="mx-auto w-full max-w-md">
+        <button
+          className="mb-6 text-sm font-bold text-indigo-700 transition hover:text-indigo-900"
+          onClick={() => router.push("/")}
+          type="button"
+        >
+          Back
+        </button>
+      </section>
+
+      <section className="mx-auto w-full max-w-md rounded-3xl border border-indigo-100 bg-white p-5 shadow-[0_25px_60px_rgba(79,70,229,0.15)]">
         <div>
-          <p className="text-sm font-semibold uppercase text-emerald-300">Multiplayer lobby</p>
-          <h1 className="mt-2 text-3xl font-semibold text-zinc-50">Create or join a room</h1>
-          <p className="mt-3 leading-7 text-zinc-400">
+          <h1 className="text-4xl font-black text-indigo-950">Create a room</h1>
+          <p className="mt-2 leading-7 text-slate-600">
             Rooms need at least 3 players before the host can start.
           </p>
         </div>
@@ -109,11 +118,11 @@ export function JoinRoomForm() {
           />
 
           <Button disabled={pendingAction !== null} onClick={createRoom}>
-            {pendingAction === "create" ? "Creating..." : "Create Room"}
+            {pendingAction === "create" ? "Creating..." : "Create & enter lobby"}
           </Button>
         </div>
 
-        <form className="mt-6 grid gap-4 border-t border-zinc-800 pt-6" onSubmit={joinRoom}>
+        <form className="mt-6 grid gap-4 border-t border-indigo-100 pt-6" onSubmit={joinRoom}>
           <Input
             autoCapitalize="characters"
             label="Room code"

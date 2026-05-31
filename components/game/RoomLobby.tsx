@@ -4,21 +4,42 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ChangeEvent, useEffect, useMemo, useState } from "react";
 
-import { Button } from "@/components/ui/Button";
-import { Modal } from "@/components/ui/Modal";
 import { MultiplayerDrawingRound } from "@/components/game/MultiplayerDrawingRound";
 import { MultiplayerReveal } from "@/components/game/MultiplayerReveal";
 import { MultiplayerScorePlaceholder } from "@/components/game/MultiplayerScorePlaceholder";
 import { MultiplayerVoting } from "@/components/game/MultiplayerVoting";
+import { Modal } from "@/components/ui/Modal";
 import { getGuestId, getStoredUsername } from "@/lib/guest/guest-id";
+import { useNavigationWarning } from "@/lib/navigation/use-navigation-warning";
 import { getSocket } from "@/lib/socket/client";
-import type { PublicRoom, RoomError, StartBlockedPayload } from "@/types/room";
+import type {
+  PublicRoom,
+  RoomClosedPayload,
+  RoomError,
+  StartBlockedPayload,
+} from "@/types/room";
 
 const MIN_PLAYERS_TO_START = 3;
 
 type RoomLobbyProps = {
   roomCode: string;
 };
+
+function playerInitial(username: string) {
+  return username.trim().slice(0, 1).toUpperCase() || "?";
+}
+
+function readyButtonClass(isReady: boolean) {
+  return isReady
+    ? "bg-emerald-500 text-white shadow-emerald-200"
+    : "bg-indigo-50 text-indigo-800";
+}
+
+function readyStatusClass(isReady: boolean) {
+  return isReady
+    ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+    : "border-slate-200 bg-white/70 text-slate-500";
+}
 
 export function RoomLobby({ roomCode }: RoomLobbyProps) {
   const router = useRouter();
@@ -27,7 +48,10 @@ export function RoomLobby({ roomCode }: RoomLobbyProps) {
   const [room, setRoom] = useState<PublicRoom | null>(null);
   const [modal, setModal] = useState<{ title: string; message: string } | null>(null);
   const [blockingError, setBlockingError] = useState<RoomError | null>(null);
+  const [closedRoom, setClosedRoom] = useState<RoomClosedPayload | null>(null);
   const [connected, setConnected] = useState(false);
+  const [countdownSeconds, setCountdownSeconds] = useState(0);
+  const [copiedRoomCode, setCopiedRoomCode] = useState(false);
 
   const activePlayers = useMemo(
     () => room?.players.filter((player) => player.connected) ?? [],
@@ -38,6 +62,33 @@ export function RoomLobby({ roomCode }: RoomLobbyProps) {
   const readyPlayers = activePlayers.filter((player) => player.ready);
   const isCurrentPlayerReady = currentPlayer?.ready ?? false;
   const hasEnoughPlayers = activePlayers.length >= MIN_PLAYERS_TO_START;
+  const allReady = hasEnoughPlayers && readyPlayers.length === activePlayers.length;
+  const isCountdown = room?.phase === "countdown";
+  const isLobbyEditable = room?.phase === "lobby";
+  const countdownEndsAt = room?.countdownEndsAt ?? null;
+
+  useNavigationWarning({
+    enabled: !closedRoom && !blockingError,
+    message: "Leave this room? Going back or refreshing can disconnect you and may make the app reconnect when you return.",
+  });
+
+  useEffect(() => {
+    if (!countdownEndsAt) {
+      return;
+    }
+
+    const updateCountdown = () => {
+      setCountdownSeconds(Math.max(0, Math.ceil((countdownEndsAt - Date.now()) / 1000)));
+    };
+
+    const timeout = window.setTimeout(updateCountdown, 0);
+    const interval = window.setInterval(updateCountdown, 100);
+
+    return () => {
+      window.clearTimeout(timeout);
+      window.clearInterval(interval);
+    };
+  }, [countdownEndsAt]);
 
   useEffect(() => {
     const storedName = getStoredUsername();
@@ -71,6 +122,7 @@ export function RoomLobby({ roomCode }: RoomLobbyProps) {
 
     const handleRoomState = (nextRoom: PublicRoom) => {
       setBlockingError(null);
+      setClosedRoom(null);
       setRoom(nextRoom);
     };
 
@@ -86,6 +138,13 @@ export function RoomLobby({ roomCode }: RoomLobbyProps) {
 
     const handleStartBlocked = (payload: StartBlockedPayload) => {
       setModal({ title: "Need more players", message: payload.message });
+    };
+
+    const handleRoomClosed = (payload: RoomClosedPayload) => {
+      setClosedRoom(payload);
+      setRoom(null);
+      setModal(null);
+      setBlockingError(null);
     };
 
     const handleStarted = (nextRoom: PublicRoom) => {
@@ -108,6 +167,7 @@ export function RoomLobby({ roomCode }: RoomLobbyProps) {
     socket.on("room:joined", handleRoomState);
     socket.on("room:state", handleRoomState);
     socket.on("room:error", handleRoomError);
+    socket.on("room:closed", handleRoomClosed);
     socket.on("game:start-blocked", handleStartBlocked);
     socket.on("game:started", handleStarted);
     socket.on("voting:started", handleVotingStarted);
@@ -125,6 +185,7 @@ export function RoomLobby({ roomCode }: RoomLobbyProps) {
       socket.off("room:joined", handleRoomState);
       socket.off("room:state", handleRoomState);
       socket.off("room:error", handleRoomError);
+      socket.off("room:closed", handleRoomClosed);
       socket.off("game:start-blocked", handleStartBlocked);
       socket.off("game:started", handleStarted);
       socket.off("voting:started", handleVotingStarted);
@@ -134,25 +195,23 @@ export function RoomLobby({ roomCode }: RoomLobbyProps) {
 
   const updateSetting = (key: "roundTime" | "totalRounds") => {
     return (event: ChangeEvent<HTMLInputElement>) => {
-      if (!room || !guestId || !isHost) {
+      if (!room || !guestId || !isHost || !isLobbyEditable) {
         return;
       }
-
-      const settings = {
-        ...room.settings,
-        [key]: Number(event.target.value),
-      };
 
       getSocket().emit("room:update-settings", {
         guestId,
         roomCode,
-        settings,
+        settings: {
+          ...room.settings,
+          [key]: Number(event.target.value),
+        },
       });
     };
   };
 
   const toggleReady = () => {
-    if (!room || !guestId) {
+    if (!room || !guestId || !isLobbyEditable) {
       return;
     }
 
@@ -162,6 +221,50 @@ export function RoomLobby({ roomCode }: RoomLobbyProps) {
       roomCode,
     });
   };
+
+  const leaveRoom = () => {
+    getSocket().emit("room:leave");
+  };
+
+  const copyRoomCode = async () => {
+    if (copiedRoomCode) {
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(roomCode);
+      setCopiedRoomCode(true);
+      window.setTimeout(() => setCopiedRoomCode(false), 2_000);
+    } catch {
+      setModal({ title: "Copy failed", message: "Copy the room code manually." });
+    }
+  };
+
+  const closeRoomClosedMessage = () => {
+    setClosedRoom(null);
+    router.replace("/join");
+  };
+
+  if (closedRoom) {
+    return (
+      <main className="grid min-h-screen place-items-center bg-gradient-to-b from-violet-100 via-indigo-50 to-pink-100 px-4 py-10 text-center text-slate-900">
+        <section className="w-full max-w-md rounded-3xl border border-indigo-100 bg-white p-6 shadow-[0_25px_60px_rgba(79,70,229,0.15)]">
+          <p className="text-sm font-black uppercase text-pink-500">Match paused</p>
+          <h1 className="mt-3 text-4xl font-black text-indigo-950">
+            Host abandoned room
+          </h1>
+          <p className="mt-3 leading-7 text-slate-600">{closedRoom.message}</p>
+          <button
+            className="mt-6 inline-flex min-h-12 items-center justify-center rounded-2xl bg-indigo-500 px-6 text-sm font-black text-white shadow-lg shadow-indigo-300 transition hover:bg-indigo-600 active:scale-[0.98]"
+            onClick={closeRoomClosedMessage}
+            type="button"
+          >
+            Home
+          </button>
+        </section>
+      </main>
+    );
+  }
 
   if (room?.phase === "drawing" && room.round && guestId) {
     return (
@@ -192,19 +295,24 @@ export function RoomLobby({ roomCode }: RoomLobbyProps) {
     );
   }
 
-  if ((room?.phase === "leaderboard" || room?.phase === "ended") && guestId) {
+  if (
+    (room?.phase === "leaderboard" ||
+      room?.phase === "ended" ||
+      room?.phase === "interrupted") &&
+    guestId
+  ) {
     return <MultiplayerScorePlaceholder guestId={guestId} room={room} />;
   }
 
   if (blockingError) {
     return (
-      <main className="grid min-h-screen place-items-center bg-zinc-950 px-4 py-10 text-zinc-50">
-        <section className="w-full max-w-md rounded-md border border-zinc-800 bg-zinc-900 p-5">
-          <p className="text-sm font-semibold uppercase text-amber-300">Room unavailable</p>
-          <h1 className="mt-2 text-3xl font-semibold text-zinc-50">{roomCode}</h1>
-          <p className="mt-3 leading-7 text-zinc-300">{blockingError.message}</p>
+      <main className="grid min-h-screen place-items-center bg-gradient-to-b from-violet-100 via-indigo-50 to-pink-100 px-4 py-10 text-slate-900">
+        <section className="w-full max-w-md rounded-3xl border border-indigo-100 bg-white p-5 shadow-[0_25px_60px_rgba(79,70,229,0.15)]">
+          <p className="text-sm font-bold uppercase text-pink-500">Room unavailable</p>
+          <h1 className="mt-2 text-4xl font-black text-indigo-950">{roomCode}</h1>
+          <p className="mt-3 leading-7 text-slate-600">{blockingError.message}</p>
           <Link
-            className="mt-5 inline-flex h-11 items-center justify-center rounded-md bg-emerald-500 px-4 text-sm font-semibold text-zinc-950 transition hover:bg-emerald-400"
+            className="mt-5 inline-flex min-h-12 items-center justify-center rounded-2xl bg-indigo-500 px-5 text-sm font-bold text-white shadow-lg shadow-indigo-300 transition hover:bg-indigo-600 active:scale-[0.98]"
             href="/join"
           >
             Create or Join Room
@@ -216,117 +324,192 @@ export function RoomLobby({ roomCode }: RoomLobbyProps) {
 
   return (
     <>
-      <main className="min-h-screen bg-zinc-950 px-4 py-6 text-zinc-50 sm:px-6 lg:px-8">
-        <div className="mx-auto flex w-full max-w-6xl flex-col gap-5">
-          <header className="flex flex-col gap-4 border-b border-zinc-800 pb-5 lg:flex-row lg:items-end lg:justify-between">
-            <div>
-              <p className="text-sm font-semibold uppercase text-emerald-300">
-                Room lobby
-              </p>
-              <h1 className="mt-2 text-4xl font-semibold tracking-normal text-zinc-50">
-                {roomCode}
-              </h1>
-              <p className="mt-2 text-zinc-400">
-                Signed in as {username || "guest"} · {connected ? "connected" : "reconnecting"}
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Link
-                className="inline-flex h-11 items-center justify-center rounded-md bg-zinc-800 px-4 text-sm font-semibold text-zinc-50 transition hover:bg-zinc-700"
-                href="/join"
-              >
-                Join Another
-              </Link>
-            </div>
+      <main className="min-h-screen bg-gradient-to-b from-violet-100 via-indigo-50 to-pink-100 px-4 py-6 text-slate-900">
+        <div className="mx-auto flex w-full max-w-md flex-col gap-5">
+          <header className="flex items-center justify-between">
+            <Link
+              className="text-sm font-bold text-indigo-700 transition hover:text-indigo-900"
+              href="/join"
+              onClick={leaveRoom}
+            >
+              Leave
+            </Link>
+            <span
+              className={`rounded-full px-3 py-1.5 text-xs font-bold ${
+                connected
+                  ? "bg-emerald-100 text-emerald-700"
+                  : "animate-pulse bg-pink-500 text-white"
+              }`}
+            >
+              {connected ? "Connected" : "Reconnecting"}
+            </span>
           </header>
 
-          <section className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
-            <div className="rounded-md border border-zinc-800 bg-zinc-900 p-4">
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <h2 className="text-xl font-semibold">Players</h2>
-                  <p className="mt-1 text-sm text-zinc-400">
-                    {activePlayers.length}/{MIN_PLAYERS_TO_START} active players required · {readyPlayers.length}/{activePlayers.length} ready
-                  </p>
-                </div>
-                {!hasEnoughPlayers ? (
-                  <span className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm font-semibold text-amber-200">
-                    Need at least 3 players
-                  </span>
-                ) : readyPlayers.length < activePlayers.length ? (
-                  <span className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm font-semibold text-amber-200">
-                    Waiting for ready
-                  </span>
-                ) : (
-                  <span className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm font-semibold text-emerald-200">
-                    Starting game
-                  </span>
-                )}
-              </div>
-
-              <div className="mt-4 grid gap-3">
-                {(room?.players ?? []).map((player) => (
-                  <article
-                    className="flex items-center justify-between rounded-md border border-zinc-800 bg-zinc-950 px-4 py-3"
-                    key={player.guestId}
+          <section className="rounded-3xl border border-indigo-100 bg-white p-5 shadow-[0_25px_60px_rgba(79,70,229,0.15)]">
+            <div>
+              <div>
+                <p className="text-sm font-bold uppercase text-slate-500">Room code</p>
+                <div className="mt-1 flex items-center gap-3">
+                  <h1 className="min-w-0 text-5xl font-black tracking-normal text-indigo-700">
+                    {roomCode}
+                  </h1>
+                  <button
+                    aria-label={copiedRoomCode ? "Room code copied" : "Copy room code"}
+                    className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-indigo-50 text-indigo-700 transition hover:bg-indigo-100 active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-emerald-100 disabled:text-emerald-700"
+                    disabled={copiedRoomCode}
+                    onClick={copyRoomCode}
+                    title={copiedRoomCode ? "Copied" : "Copy room code"}
+                    type="button"
                   >
-                    <div>
-                      <p className="font-semibold text-zinc-50">
-                        {player.username}
-                        {player.guestId === guestId ? " (you)" : ""}
-                      </p>
-                      <p className="mt-1 text-sm text-zinc-500">
-                        {player.connected ? "Connected" : "Disconnected"}
-                      </p>
-                    </div>
-                    <div className="flex gap-2">
-                      {player.isHost ? (
-                        <span className="rounded bg-emerald-400 px-2 py-1 text-xs font-bold uppercase text-zinc-950">
-                          Host
-                        </span>
-                      ) : null}
-                      {player.guestId === guestId ? (
-                        <Button
-                          className="h-8 px-3 text-xs"
-                          disabled={!hasEnoughPlayers}
-                          onClick={toggleReady}
-                          variant={player.ready ? "primary" : "secondary"}
-                        >
-                          {player.ready ? "Ready" : "Not Ready"}
-                        </Button>
-                      ) : player.ready ? (
-                        <span className="rounded bg-sky-400 px-2 py-1 text-xs font-bold uppercase text-zinc-950">
-                          Ready
-                        </span>
-                      ) : (
-                        <span className="rounded border border-zinc-700 px-2 py-1 text-xs font-bold uppercase text-zinc-400">
-                          Not ready
-                        </span>
-                      )}
-                    </div>
-                  </article>
-                ))}
-
-                {!room ? (
-                  <div className="rounded-md border border-zinc-800 bg-zinc-950 p-4 text-zinc-400">
-                    Joining room...
-                  </div>
-                ) : null}
+                    {copiedRoomCode ? (
+                      <svg
+                        aria-hidden="true"
+                        className="h-5 w-5"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth="2.75"
+                        viewBox="0 0 24 24"
+                      >
+                        <path d="M20 6 9 17l-5-5" />
+                      </svg>
+                    ) : (
+                      <svg
+                        aria-hidden="true"
+                        className="h-5 w-5"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth="2.25"
+                        viewBox="0 0 24 24"
+                      >
+                        <rect height="14" rx="2" ry="2" width="14" x="8" y="8" />
+                        <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
+                      </svg>
+                    )}
+                  </button>
+                </div>
+                <p className="mt-2 text-sm font-semibold text-slate-500">
+                  Signed in as {username || "guest"}
+                </p>
               </div>
             </div>
 
-            <aside className="rounded-md border border-zinc-800 bg-zinc-900 p-4">
-              <h2 className="text-xl font-semibold">Settings</h2>
-              <p className="mt-1 text-sm text-zinc-400">
+            <div className="mt-8 flex items-center justify-between gap-3">
+              <h2 className="text-lg font-black text-slate-700">
+                Players ({activePlayers.length}/8)
+              </h2>
+              {!hasEnoughPlayers ? (
+                <span className="rounded-full bg-amber-100 px-3 py-1.5 text-xs font-bold text-amber-700">
+                  Min 3 players
+                </span>
+              ) : isCountdown ? (
+                <span className="rounded-full bg-emerald-100 px-3 py-1.5 text-xs font-black text-emerald-700">
+                  All ready
+                </span>
+              ) : readyPlayers.length < activePlayers.length ? (
+                <span className="rounded-full bg-indigo-50 px-3 py-1.5 text-xs font-bold text-indigo-700">
+                  {readyPlayers.length}/{activePlayers.length} ready
+                </span>
+              ) : (
+                <span className="animate-pulse rounded-full bg-pink-500 px-3 py-1.5 text-xs font-black text-white">
+                  Starting
+                </span>
+              )}
+            </div>
+
+            <div className="mt-4 grid gap-3">
+              {(room?.players ?? []).map((player) => {
+                const isCurrentPlayer = player.guestId === guestId;
+
+                return (
+                  <article
+                    className={`flex items-center justify-between gap-3 rounded-3xl border px-4 py-3 ${
+                      isCurrentPlayer
+                        ? "border-indigo-200 bg-white"
+                        : "border-indigo-100 bg-indigo-50/60"
+                    }`}
+                    key={player.guestId}
+                  >
+                    <div className="flex min-w-0 items-center gap-3">
+                      <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-white text-lg font-black text-indigo-700">
+                        {playerInitial(player.username)}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="truncate font-black text-indigo-950">
+                          {isCurrentPlayer ? "You" : player.username}
+                          {player.isHost ? " - Host" : ""}
+                        </p>
+                        <p className="mt-1 text-sm text-slate-500">
+                          {player.connected ? "Connected" : "Disconnected"}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-2">
+                      {isCurrentPlayer ? (
+                        <button
+                          className={`min-h-9 rounded-xl px-4 py-2 text-xs font-black uppercase shadow transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-45 ${readyButtonClass(player.ready)}`}
+                          disabled={!hasEnoughPlayers || !isLobbyEditable}
+                          onClick={toggleReady}
+                          type="button"
+                        >
+                          {player.ready ? "Ready" : "Ready up"}
+                        </button>
+                      ) : (
+                        <span
+                          aria-label={`${player.username} is ${
+                            player.ready ? "ready" : "not ready"
+                          }`}
+                          className={`inline-flex min-h-9 items-center rounded-xl border px-4 py-2 text-xs font-black uppercase ${readyStatusClass(player.ready)}`}
+                        >
+                          {player.ready ? "Ready" : "Not ready"}
+                        </span>
+                      )}
+                      <span
+                        className={`h-3 w-3 rounded-full ${
+                          player.connected ? "bg-emerald-500" : "bg-amber-500"
+                        }`}
+                      />
+                    </div>
+                  </article>
+                );
+              })}
+
+              {!room ? (
+                <div className="rounded-3xl border border-indigo-100 bg-indigo-50/60 p-4 text-slate-500">
+                  Joining room...
+                </div>
+              ) : null}
+            </div>
+
+            {isCountdown ? (
+              <div className="mt-6 text-center">
+                <p className="text-sm font-black uppercase text-pink-500">Starting in</p>
+                <p className="mt-1 text-7xl font-black tabular-nums text-pink-500">
+                  {countdownSeconds}
+                </p>
+              </div>
+            ) : allReady ? (
+              <div className="mt-6 text-center">
+                <p className="text-sm font-black uppercase text-pink-500">Ready</p>
+                <p className="mt-1 text-3xl font-black text-pink-500">Countdown starting</p>
+              </div>
+            ) : null}
+
+            <aside className="mt-6 border-t border-indigo-100 pt-5">
+              <h2 className="text-lg font-black text-slate-700">Settings</h2>
+              <p className="mt-1 text-sm text-slate-500">
                 {isHost ? "Host controls are active." : "Only the host can change settings."}
               </p>
 
               <div className="mt-5 grid gap-5">
-                <label className="grid gap-2 text-sm font-medium text-zinc-300">
+                <label className="grid gap-2 text-sm font-bold text-slate-600">
                   Round timer: {room?.settings.roundTime ?? 90}s
                   <input
-                    className="accent-emerald-400"
-                    disabled={!isHost || !room}
+                    className="accent-indigo-500"
+                    disabled={!isHost || !room || !isLobbyEditable}
                     max="180"
                     min="30"
                     onChange={updateSetting("roundTime")}
@@ -336,11 +519,11 @@ export function RoomLobby({ roomCode }: RoomLobbyProps) {
                   />
                 </label>
 
-                <label className="grid gap-2 text-sm font-medium text-zinc-300">
+                <label className="grid gap-2 text-sm font-bold text-slate-600">
                   Total rounds: {room?.settings.totalRounds ?? 3}
                   <input
-                    className="accent-emerald-400"
-                    disabled={!isHost || !room}
+                    className="accent-indigo-500"
+                    disabled={!isHost || !room || !isLobbyEditable}
                     max="10"
                     min="1"
                     onChange={updateSetting("totalRounds")}

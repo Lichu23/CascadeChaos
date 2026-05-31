@@ -52,49 +52,43 @@ export function MultiplayerVoting({ guestId, room }: MultiplayerVotingProps) {
 
   if (!round || !voting) {
     return (
-      <main className="grid min-h-screen place-items-center bg-zinc-950 px-4 text-zinc-50">
-        <section className="rounded-md border border-zinc-800 bg-zinc-900 p-5">
-          <h1 className="text-xl font-semibold">Voting loading</h1>
-          <p className="mt-2 text-zinc-400">Waiting for the server to open voting.</p>
+      <main className="grid min-h-screen place-items-center bg-gradient-to-b from-violet-100 via-indigo-50 to-pink-100 px-4 text-slate-900">
+        <section className="rounded-3xl border border-indigo-100 bg-white p-5 shadow-[0_25px_60px_rgba(79,70,229,0.15)]">
+          <h1 className="text-xl font-black text-indigo-950">Voting loading</h1>
+          <p className="mt-2 text-slate-500">Waiting for the server to open voting.</p>
         </section>
       </main>
     );
   }
 
   return (
-    <main className="min-h-screen bg-zinc-950 text-zinc-50">
-      <div className="mx-auto flex w-full max-w-7xl flex-col gap-5 px-4 py-5 sm:px-6 lg:px-8">
-        <header className="flex flex-col gap-4 border-b border-zinc-800 pb-5 lg:flex-row lg:items-end lg:justify-between">
+    <main className="min-h-screen bg-gradient-to-b from-violet-100 via-indigo-50 to-pink-100 text-slate-900">
+      <div className="mx-auto flex w-full max-w-3xl flex-col gap-5 px-4 py-5">
+        <header className="text-center">
           <div>
-            <p className="text-sm font-semibold uppercase text-emerald-300">
+            <p className="inline-flex rounded-full bg-pink-500 px-4 py-1.5 text-xs font-black uppercase text-white">
               Room {room.code} / Voting
             </p>
-            <h1 className="mt-2 text-3xl font-semibold text-zinc-50 sm:text-4xl">
+            <h1 className="mt-4 text-3xl font-black text-indigo-950 sm:text-4xl">
               Vote for the closest drawing
             </h1>
-            <p className="mt-2 text-zinc-400">
+            <p className="mt-2 text-slate-600">
               {hasVoted ? "Vote submitted. Waiting for everyone else." : "Pick one drawing. You cannot vote for yourself."}
             </p>
           </div>
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="min-w-28 rounded-md border border-zinc-800 bg-zinc-900 px-4 py-3 text-right">
-              <p className="text-xs uppercase text-zinc-500">Time</p>
-              <p className="text-2xl font-semibold tabular-nums text-zinc-50">
-                {secondsLeft}s
-              </p>
-            </div>
-            <div className="min-w-36 rounded-md border border-zinc-800 bg-zinc-900 px-4 py-3">
-              <p className="text-xs uppercase text-zinc-500">Votes</p>
-              <p className="text-lg font-semibold text-zinc-50">
-                {voting.voteCount}/{voting.expectedVotes}
-              </p>
-            </div>
+          <div className="mt-4 flex flex-wrap items-center justify-center gap-3">
+            <span className={`rounded-full px-4 py-2 text-sm font-black tabular-nums ${secondsLeft <= 10 ? "animate-pulse bg-pink-500 text-white" : "bg-white text-indigo-700"}`}>
+              {secondsLeft}s
+            </span>
+            <span className="rounded-full bg-white px-4 py-2 text-sm font-black text-indigo-700">
+              Votes {voting.voteCount}/{voting.expectedVotes}
+            </span>
           </div>
         </header>
 
-        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <section className="grid gap-4 sm:grid-cols-2">
           {eligibleSubmissions.length === 0 ? (
-            <div className="rounded-md border border-zinc-800 bg-zinc-900 p-5 text-zinc-400 md:col-span-2 xl:col-span-3">
+            <div className="rounded-3xl border border-indigo-100 bg-white p-5 text-slate-500 sm:col-span-2">
               No submitted drawings are available to vote on.
             </div>
           ) : null}
@@ -103,21 +97,22 @@ export function MultiplayerVoting({ guestId, room }: MultiplayerVotingProps) {
 
             return (
               <article
-                className={`rounded-md border bg-zinc-900 p-4 ${
-                  selected ? "border-emerald-400" : "border-zinc-800"
+                className={`rounded-3xl border bg-white p-4 shadow-[0_25px_60px_rgba(79,70,229,0.15)] ${
+                  selected ? "border-pink-500 ring-2 ring-pink-500" : "border-indigo-100"
                 }`}
                 key={submission.guestId}
               >
                 <div className="mb-3 flex items-center justify-between gap-3">
-                  <h2 className="text-lg font-semibold">{submission.username}</h2>
+                  <h2 className="text-lg font-black text-indigo-950">{submission.username}</h2>
                   <Button
+                    className="min-h-9 rounded-xl px-3 text-xs"
                     disabled={hasVoted || !voting.isVotingOpen}
                     onClick={() => castVote(submission.guestId)}
                   >
                     {selected ? "Voted" : "Vote"}
                   </Button>
                 </div>
-                <div className="grid min-h-[300px] place-items-center overflow-hidden rounded-md bg-white">
+                <div className="grid min-h-[260px] place-items-center overflow-hidden rounded-2xl bg-amber-50">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     alt={`${submission.username} drawing`}

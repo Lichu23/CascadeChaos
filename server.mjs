@@ -16,6 +16,7 @@ const EMPTY_ROOM_TTL_MS = 5 * 60_000;
 const REVEAL_TIME_MS = 10_000;
 const LEADERBOARD_TIME_MS = 5_000;
 const VOTING_TIME_MS = 30_000;
+const START_COUNTDOWN_MS = 3_000;
 const CHALLENGE_IDS = [
   "crypto",
   "dashboard",
@@ -103,7 +104,9 @@ function publicRoom(room) {
     phase: room.phase,
     hostId: room.hostId,
     settings: room.settings,
+    countdownEndsAt: room.countdownEndsAt ?? null,
     round,
+    interruptedReason: room.interruptedReason ?? null,
     players: Array.from(room.players.values()).map((player) => ({
       guestId: player.guestId,
       username: player.username,
@@ -139,10 +142,13 @@ function maybeAutoStartGame(io, room) {
     return false;
   }
 
-  startDrawingRound(io, room);
-  io.to(room.code).emit("game:started", publicRoom(room));
+  startGameCountdown(io, room);
   emitRoom(io, room);
   return true;
+}
+
+function isActiveGamePhase(room) {
+  return ["countdown", "drawing", "reveal", "voting", "leaderboard"].includes(room.phase);
 }
 
 function emitRoom(io, room) {
@@ -151,6 +157,22 @@ function emitRoom(io, room) {
 
 function emitError(socket, code, message) {
   socket.emit("room:error", { code, message });
+}
+
+function closeRoom(io, room, reason) {
+  clearRoundTimers(room);
+
+  if (room.cleanupTimer) {
+    clearTimeout(room.cleanupTimer);
+    room.cleanupTimer = null;
+  }
+
+  io.to(room.code).emit("room:closed", {
+    code: room.code,
+    message: reason,
+  });
+  io.socketsLeave(room.code);
+  rooms.delete(room.code);
 }
 
 function isSubmissionOpen(room) {
@@ -202,6 +224,11 @@ function reassignHost(room) {
 }
 
 function clearRoundTimers(room) {
+  if (room.countdownTimer) {
+    clearTimeout(room.countdownTimer);
+    room.countdownTimer = null;
+  }
+
   if (room.round?.timer) {
     clearTimeout(room.round.timer);
     room.round.timer = null;
@@ -221,6 +248,87 @@ function clearRoundTimers(room) {
     clearTimeout(room.round.leaderboardTimer);
     room.round.leaderboardTimer = null;
   }
+}
+
+function cancelGameCountdown(io, room) {
+  if (room.phase !== "countdown") {
+    return false;
+  }
+
+  if (room.countdownTimer) {
+    clearTimeout(room.countdownTimer);
+    room.countdownTimer = null;
+  }
+
+  room.phase = "lobby";
+  room.countdownEndsAt = null;
+  resetLobbyReadiness(room);
+  emitRoom(io, room);
+  return true;
+}
+
+function interruptGame(io, room, reason) {
+  if (!isActiveGamePhase(room)) {
+    return false;
+  }
+
+  clearRoundTimers(room);
+  room.phase = "interrupted";
+  room.interruptedReason = reason;
+  emitRoom(io, room);
+  return true;
+}
+
+function maybeInterruptForPlayerCount(io, room) {
+  if (room.phase === "countdown") {
+    return canAutoStart(room) ? false : cancelGameCountdown(io, room);
+  }
+
+  if (!isActiveGamePhase(room)) {
+    return false;
+  }
+
+  const activeCount = activePlayers(room).length;
+
+  if (activeCount >= MIN_PLAYERS_TO_START) {
+    return false;
+  }
+
+  return interruptGame(
+    io,
+    room,
+    `The match stopped because only ${activeCount} active ${
+      activeCount === 1 ? "player remains" : "players remain"
+    }. At least ${MIN_PLAYERS_TO_START} players are needed to continue.`,
+  );
+}
+
+function startGameCountdown(io, room) {
+  if (room.countdownTimer) {
+    clearTimeout(room.countdownTimer);
+  }
+
+  room.phase = "countdown";
+  room.countdownEndsAt = Date.now() + START_COUNTDOWN_MS;
+  room.countdownTimer = setTimeout(() => {
+    const latestRoom = rooms.get(room.code);
+
+    if (!latestRoom || latestRoom.phase !== "countdown") {
+      return;
+    }
+
+    latestRoom.countdownTimer = null;
+
+    if (!canAutoStart(latestRoom)) {
+      cancelGameCountdown(io, latestRoom);
+      return;
+    }
+
+    latestRoom.countdownEndsAt = null;
+    startDrawingRound(io, latestRoom);
+    io.to(latestRoom.code).emit("game:started", publicRoom(latestRoom));
+    emitRoom(io, latestRoom);
+  }, START_COUNTDOWN_MS);
 }
 
 function scheduleRoomCleanup(io, room) {
@@ -260,6 +368,10 @@ function closeDrawingRound(io, room) {
     return;
   }
 
+  if (maybeInterruptForPlayerCount(io, room)) {
+    return;
+  }
+
   for (const [guestId, draft] of room.round.drafts.entries()) {
     if (!room.round.submissions.has(guestId)) {
       room.round.submissions.set(guestId, {
@@ -296,6 +408,10 @@ function closeDrawingRound(io, room) {
 
 function closeVoting(io, room) {
   if (!room.round?.voting || room.round.voting.closed) {
+    return;
+  }
+
+  if (maybeInterruptForPlayerCount(io, room)) {
     return;
   }
 
@@ -349,6 +465,10 @@ function emitSubmissionProgress(io, room, guestId) {
 }
 
 function startDrawingRound(io, room) {
+  if (maybeInterruptForPlayerCount(io, room)) {
+    return;
+  }
+
   const roundNumber = (room.round?.number ?? 0) + 1;
   const now = Date.now();
   const participantIds = activePlayers(room).map((player) => player.guestId);
@@ -360,6 +480,7 @@ function startDrawingRound(io, room) {
   }
 
   room.phase = "drawing";
+  room.countdownEndsAt = null;
   room.round = {
     number: roundNumber,
     challengeId: pickChallengeId(room, roundNumber),
@@ -385,6 +506,10 @@ function advanceRound(io, room) {
     return;
   }
 
+  if (maybeInterruptForPlayerCount(io, room)) {
+    return;
+  }
+
   if (room.phase === "leaderboard") {
     startDrawingRound(io, room);
     io.to(room.code).emit("round:advanced", { room: publicRoom(room) });
@@ -403,7 +528,9 @@ function returnToLobby(io, room) {
 
   room.phase = "lobby";
   room.round = null;
+  room.countdownEndsAt = null;
   room.challengeOrder = [];
+  room.interruptedReason = null;
 
   for (const player of room.players.values()) {
     player.score = 0;
@@ -426,6 +553,10 @@ function maybeReturnAllToLobby(io, room) {
 }
 
 function startVoting(io, room) {
+  if (maybeInterruptForPlayerCount(io, room)) {
+    return;
+  }
+
   if (room.round?.revealTimer) {
     clearTimeout(room.round.revealTimer);
     room.round.revealTimer = null;
@@ -447,6 +578,10 @@ function startVoting(io, room) {
   room.round.voting.timer = setTimeout(() => {
     closeVoting(io, room);
   }, VOTING_TIME_MS);
+
+  if (expectedVoters(room).length === 0) {
+    closeVoting(io, room);
+  }
 }
 
 function emitVoteProgress(io, room, guestId) {
@@ -480,8 +615,11 @@ function joinSocketToRoom({ io, socket, room, guestId, username }) {
     existingPlayer.username = username;
     existingPlayer.socketId = socket.id;
     existingPlayer.connected = true;
-    existingPlayer.ready = false;
-    existingPlayer.returnedToLobby = false;
+    existingPlayer.ready = room.phase === "lobby" ? false : existingPlayer.ready;
+    existingPlayer.returnedToLobby =
+      room.phase === "ended" || room.phase === "interrupted"
+        ? existingPlayer.returnedToLobby
+        : false;
     existingPlayer.lastSeenAt = Date.now();
   } else {
     room.players.set(guestId, {
@@ -529,12 +667,24 @@ function leaveCurrentRoom(io, socket, { immediate = false } = {}) {
   }
 
   const player = room.players.get(guestId);
+  const isHostLeaving = Boolean(
+    player &&
+      room.hostId === guestId &&
+      player.socketId === socket.id,
+  );
 
   if (player) {
     player.connected = false;
     player.ready = false;
     player.returnedToLobby = false;
     player.lastSeenAt = Date.now();
+  }
+
+  if (isHostLeaving && immediate) {
+    closeRoom(io, room, "Host abandoned the room.");
+    socket.data.roomCode = null;
+    socket.data.guestId = null;
+    return;
   }
 
   socket.leave(roomCode);
@@ -549,6 +699,7 @@ function leaveCurrentRoom(io, socket, { immediate = false } = {}) {
   }
 
   if (immediate) {
+    maybeInterruptForPlayerCount(io, room);
     emitRoom(io, room);
     return;
   }
@@ -561,12 +712,41 @@ function leaveCurrentRoom(io, socket, { immediate = false } = {}) {
       return;
     }
 
+    if (latestRoom.hostId === guestId && latestPlayer.socketId === socket.id) {
+      closeRoom(io, latestRoom, "Host abandoned the room.");
+      return;
+    }
+
     if (latestRoom.phase === "lobby") {
       latestRoom.players.delete(guestId);
       reassignHost(latestRoom);
       maybeAutoStartGame(io, latestRoom);
     } else {
       reassignHost(latestRoom);
+
+      if (maybeInterruptForPlayerCount(io, latestRoom)) {
+        return;
+      }
+
+      if (
+        latestRoom.phase === "drawing" &&
+        latestRoom.round &&
+        latestRoom.round.participantIds
+          .filter((participantId) => latestRoom.players.get(participantId)?.connected)
+          .every((participantId) => latestRoom.round.submissions.has(participantId))
+      ) {
+        closeDrawingRound(io, latestRoom);
+        return;
+      }
+
+      if (
+        latestRoom.phase === "voting" &&
+        latestRoom.round?.voting &&
+        latestRoom.round.voting.votes.size >= expectedVoters(latestRoom).length
+      ) {
+        closeVoting(io, latestRoom);
+        return;
+      }
     }
 
     emitRoom(io, latestRoom);
@@ -623,6 +803,9 @@ io.on("connection", (socket) => {
       challengeOrder: [],
       createdAt: Date.now(),
       cleanupTimer: null,
+      countdownTimer: null,
+      countdownEndsAt: null,
+      interruptedReason: null,
     };
 
     rooms.set(code, room);
@@ -715,7 +898,7 @@ io.on("connection", (socket) => {
       return;
     }
 
-    if (room.phase !== "ended") {
+    if (room.phase !== "ended" && room.phase !== "interrupted") {
       emitError(socket, "GAME_NOT_ENDED", "The match is not finished yet.");
       return;
     }
@@ -764,9 +947,7 @@ io.on("connection", (socket) => {
       return;
     }
 
-    startDrawingRound(io, room);
-    io.to(room.code).emit("game:started", publicRoom(room));
-    emitRoom(io, room);
+    maybeAutoStartGame(io, room);
   });
 
   socket.on("drawing:submit", ({ roomCode, guestId, dataUrl }) => {
@@ -927,7 +1108,7 @@ io.on("connection", (socket) => {
       return;
     }
 
-    if (room.phase !== "leaderboard" && room.phase !== "ended") {
+    if (room.phase !== "leaderboard" && room.phase !== "ended" && room.phase !== "interrupted") {
       emitError(socket, "ROUND_NOT_READY", "The round is not ready to continue.");
       return;
     }

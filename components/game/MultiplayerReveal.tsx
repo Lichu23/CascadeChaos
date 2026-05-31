@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
 import { challenges } from "@/lib/challenges";
+import { getSocket } from "@/lib/socket/client";
 import type { PublicRoom } from "@/types/room";
 
 type MultiplayerRevealProps = {
@@ -35,51 +36,54 @@ export function MultiplayerReveal({ room }: MultiplayerRevealProps) {
     return () => window.clearInterval(interval);
   }, [round?.revealEndsAt]);
 
+  const leaveRoom = () => {
+    getSocket().emit("room:leave");
+  };
+
   if (!round) {
     return (
-      <main className="grid min-h-screen place-items-center bg-zinc-950 px-4 text-zinc-50">
-        <section className="rounded-md border border-zinc-800 bg-zinc-900 p-5">
-          <h1 className="text-xl font-semibold">Reveal loading</h1>
-          <p className="mt-2 text-zinc-400">Waiting for the server to finish the round.</p>
+      <main className="grid min-h-screen place-items-center bg-gradient-to-b from-violet-100 via-indigo-50 to-pink-100 px-4 text-slate-900">
+        <section className="rounded-3xl border border-indigo-100 bg-white p-5 shadow-[0_25px_60px_rgba(79,70,229,0.15)]">
+          <h1 className="text-xl font-black text-indigo-950">Reveal loading</h1>
+          <p className="mt-2 text-slate-500">Waiting for the server to finish the round.</p>
         </section>
       </main>
     );
   }
 
   return (
-    <main className="min-h-screen bg-zinc-950 text-zinc-50">
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-5 px-4 py-5 sm:px-6 lg:px-8">
-        <header className="flex flex-col gap-4 border-b border-zinc-800 pb-5 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <p className="text-sm font-semibold uppercase text-emerald-300">
-              Room {room.code} / Reveal
+    <main className="min-h-screen bg-gradient-to-b from-violet-100 via-indigo-50 to-pink-100 text-slate-900">
+      <div className="mx-auto flex w-full max-w-3xl flex-col gap-5 px-4 py-5">
+        <header className="text-center">
+          <Link
+            className="block text-left text-sm font-bold text-indigo-700"
+            href="/join"
+            onClick={leaveRoom}
+          >
+            Back
+          </Link>
+          <div className="mt-4">
+            <p className="inline-flex rounded-full bg-pink-500 px-4 py-1.5 text-xs font-black uppercase text-white">
+              The big reveal
             </p>
-            <h1 className="mt-2 text-3xl font-semibold text-zinc-50 sm:text-4xl">
-              {challenge.title}
+            <h1 className="mt-4 text-3xl font-black text-indigo-950 sm:text-4xl">
+              Who got closest?
             </h1>
-            <p className="mt-2 text-zinc-400">
-              The real interface is shown before voting begins.
-            </p>
+            <p className="mt-2 text-slate-600">{challenge.title}</p>
           </div>
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="min-w-28 rounded-md border border-zinc-800 bg-zinc-900 px-4 py-3 text-right">
-              <p className="text-xs uppercase text-zinc-500">Voting in</p>
-              <p className="text-2xl font-semibold tabular-nums text-zinc-50">
-                {secondsLeft}s
-              </p>
-            </div>
-            <div className="min-w-36 rounded-md border border-zinc-800 bg-zinc-900 px-4 py-3">
-              <p className="text-xs uppercase text-zinc-500">Round</p>
-              <p className="text-lg font-semibold text-zinc-50">
-                {round.number}/{round.totalRounds}
-              </p>
-            </div>
+          <div className="mt-4 flex justify-center gap-3">
+            <span className={`rounded-full px-4 py-2 text-sm font-black tabular-nums ${secondsLeft <= 3 ? "animate-pulse bg-pink-500 text-white" : "bg-white text-indigo-700"}`}>
+              Voting in {secondsLeft}s
+            </span>
+            <span className="rounded-full bg-white px-4 py-2 text-sm font-black text-indigo-700">
+              Round {round.number}/{round.totalRounds}
+            </span>
           </div>
         </header>
 
-        <section className="rounded-md border border-zinc-800 bg-zinc-900 p-4">
-          <h2 className="text-xl font-semibold">Correct reveal</h2>
-          <div className="relative mt-4 min-h-[560px] overflow-hidden rounded-md bg-zinc-950">
+        <section className="rounded-3xl border-2 border-emerald-400 bg-white p-4 shadow-[0_25px_60px_rgba(79,70,229,0.15)]">
+          <h2 className="text-sm font-black uppercase text-emerald-600">Real page</h2>
+          <div className="relative mt-3 min-h-[420px] overflow-hidden rounded-2xl bg-indigo-50">
             <Image
               alt={`${challenge.title} reveal`}
               className="object-contain"
@@ -91,9 +95,13 @@ export function MultiplayerReveal({ room }: MultiplayerRevealProps) {
           </div>
         </section>
 
-        <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-zinc-800 pt-4 text-sm text-zinc-500">
+        <footer className="flex flex-wrap items-center justify-center gap-3 border-t border-indigo-100 pt-4 text-sm font-semibold text-slate-500">
           <span>Voting starts automatically.</span>
-          <Link className="text-zinc-300 hover:text-zinc-50" href="/join">
+          <Link
+            className="text-indigo-700 hover:text-indigo-900"
+            href="/join"
+            onClick={leaveRoom}
+          >
             Leave room
           </Link>
         </footer>
