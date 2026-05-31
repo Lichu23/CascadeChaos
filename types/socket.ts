@@ -2,6 +2,7 @@ import type {
   DrawingSubmittedPayload,
   PublicRoom,
   RoundAdvancedPayload,
+  RoomClosedPayload,
   RoomError,
   RoomSettings,
   StartBlockedPayload,
@@ -13,6 +14,7 @@ export type ServerToClientEvents = {
   "room:joined": (room: PublicRoom) => void;
   "room:state": (room: PublicRoom) => void;
   "room:error": (error: RoomError) => void;
+  "room:closed": (payload: RoomClosedPayload) => void;
   "game:start-blocked": (payload: StartBlockedPayload) => void;
   "game:started": (room: PublicRoom) => void;
   "drawing:submitted": (payload: DrawingSubmittedPayload) => void;

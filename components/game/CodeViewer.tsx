@@ -12,13 +12,13 @@ export function CodeViewer({ html, css }: CodeViewerProps) {
   const source = activeTab === "html" ? html : css;
 
   return (
-    <section className="flex min-h-0 flex-col rounded-md border border-zinc-800 bg-zinc-950">
-      <div className="flex border-b border-zinc-800 p-1">
+    <section className="flex min-h-0 flex-col rounded-3xl bg-indigo-950 text-indigo-100 shadow-[0_25px_60px_rgba(79,70,229,0.15)]">
+      <div className="flex gap-1 border-b border-indigo-900 p-2">
         <button
-          className={`h-9 rounded px-3 text-sm font-semibold ${
+          className={`h-9 rounded-xl px-3 text-sm font-bold transition ${
             activeTab === "html"
-              ? "bg-zinc-100 text-zinc-950"
-              : "text-zinc-400 hover:bg-zinc-900 hover:text-zinc-100"
+              ? "bg-white text-indigo-700"
+              : "text-indigo-200 hover:bg-indigo-900"
           }`}
           onClick={() => setActiveTab("html")}
           type="button"
@@ -26,10 +26,10 @@ export function CodeViewer({ html, css }: CodeViewerProps) {
           HTML
         </button>
         <button
-          className={`h-9 rounded px-3 text-sm font-semibold ${
+          className={`h-9 rounded-xl px-3 text-sm font-bold transition ${
             activeTab === "css"
-              ? "bg-zinc-100 text-zinc-950"
-              : "text-zinc-400 hover:bg-zinc-900 hover:text-zinc-100"
+              ? "bg-white text-indigo-700"
+              : "text-indigo-200 hover:bg-indigo-900"
           }`}
           onClick={() => setActiveTab("css")}
           type="button"
@@ -37,7 +37,7 @@ export function CodeViewer({ html, css }: CodeViewerProps) {
           CSS
         </button>
       </div>
-      <pre className="min-h-[360px] overflow-auto p-4 text-[13px] leading-6 text-zinc-200">
+      <pre className="min-h-[320px] overflow-auto p-4 font-mono text-[11px] leading-relaxed text-indigo-100">
         <code>{source}</code>
       </pre>
     </section>

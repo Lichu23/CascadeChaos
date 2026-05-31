@@ -109,74 +109,78 @@ export function MultiplayerDrawingRound({ guestId, room }: MultiplayerDrawingRou
     });
   };
 
+  const leaveRoom = () => {
+    getSocket().emit("room:leave");
+  };
+
   if (!round) {
     return (
-      <main className="grid min-h-screen place-items-center bg-zinc-950 px-4 text-zinc-50">
-        <section className="rounded-md border border-zinc-800 bg-zinc-900 p-5">
-          <h1 className="text-xl font-semibold">Round loading</h1>
-          <p className="mt-2 text-zinc-400">Waiting for the server to send the challenge.</p>
+      <main className="grid min-h-screen place-items-center bg-gradient-to-b from-violet-100 via-indigo-50 to-pink-100 px-4 text-slate-900">
+        <section className="rounded-3xl border border-indigo-100 bg-white p-5 shadow-[0_25px_60px_rgba(79,70,229,0.15)]">
+          <h1 className="text-xl font-black text-indigo-950">Round loading</h1>
+          <p className="mt-2 text-slate-500">Waiting for the server to send the challenge.</p>
         </section>
       </main>
     );
   }
 
   return (
-    <main className="min-h-screen bg-zinc-950 text-zinc-50">
-      <div className="mx-auto flex w-full max-w-7xl flex-col gap-5 px-4 py-5 sm:px-6 lg:px-8">
-        <header className="flex flex-col gap-4 border-b border-zinc-800 pb-5 lg:flex-row lg:items-end lg:justify-between">
+    <main className="min-h-screen bg-gradient-to-b from-violet-100 via-indigo-50 to-pink-100 text-slate-900">
+      <div className="mx-auto flex w-full max-w-5xl flex-col gap-5 px-4 py-5">
+        <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <p className="text-sm font-semibold uppercase text-emerald-300">
+            <p className="inline-flex rounded-full bg-white px-3 py-1.5 text-xs font-bold uppercase text-indigo-700">
               Room {room.code} / Drawing round
             </p>
-            <h1 className="mt-2 text-3xl font-semibold text-zinc-50 sm:text-4xl">
+            <h1 className="mt-3 text-3xl font-black text-indigo-950 sm:text-4xl">
               {challenge.title}
             </h1>
-            <p className="mt-2 text-zinc-400">
+            <p className="mt-2 text-slate-600">
               {submitted ? "Drawing submitted. Waiting for everyone else." : "Read the code, then draw your prediction."}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-3">
-            <div className="min-w-28 rounded-md border border-zinc-800 bg-zinc-900 px-4 py-3 text-right">
-              <p className="text-xs uppercase text-zinc-500">Time</p>
-              <p className="text-2xl font-semibold tabular-nums text-zinc-50">
+            <div className={`min-w-28 rounded-full px-4 py-3 text-right ${secondsLeft <= 10 ? "animate-pulse bg-pink-500 text-white" : "bg-white text-indigo-950"}`}>
+              <p className="text-xs font-bold uppercase opacity-70">Time</p>
+              <p className="text-2xl font-black tabular-nums">
                 {secondsLeft}s
               </p>
             </div>
-            <div className="min-w-36 rounded-md border border-zinc-800 bg-zinc-900 px-4 py-3">
-              <p className="text-xs uppercase text-zinc-500">Round</p>
-              <p className="text-lg font-semibold text-zinc-50">
+            <div className="min-w-36 rounded-full bg-white px-4 py-3 text-indigo-950">
+              <p className="text-xs font-bold uppercase text-slate-500">Round</p>
+              <p className="text-lg font-black">
                 {round.number}/{round.totalRounds}
               </p>
             </div>
-            <div className="min-w-36 rounded-md border border-zinc-800 bg-zinc-900 px-4 py-3">
-              <p className="text-xs uppercase text-zinc-500">Submitted</p>
-              <p className="text-lg font-semibold text-zinc-50">
+            <div className="min-w-36 rounded-full bg-white px-4 py-3 text-indigo-950">
+              <p className="text-xs font-bold uppercase text-slate-500">Submitted</p>
+              <p className="text-lg font-black">
                 {round.submissionCount}/{round.expectedSubmissions}
               </p>
             </div>
           </div>
         </header>
 
-        <div className="h-2 overflow-hidden rounded-full bg-zinc-800">
+        <div className="h-2 overflow-hidden rounded-full bg-white/70">
           <div
-            className="h-full bg-emerald-400 transition-all"
+            className="h-full bg-pink-500 transition-all"
             style={{ width: `${progress}%` }}
           />
         </div>
 
         {!isSubmissionOpen ? (
-          <section className="rounded-md border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-amber-100">
-            Drawing time is closed. Reveal is the next phase to implement.
+          <section className="rounded-3xl border border-amber-200 bg-amber-100 px-4 py-3 font-bold text-amber-800">
+            Drawing time is closed. Reveal starts next.
           </section>
         ) : null}
 
         <div className="flex min-h-0 flex-col gap-4">
-          <div className="flex rounded-md border border-zinc-800 bg-zinc-900 p-1">
+          <div className="flex rounded-2xl bg-slate-100 p-1">
             <button
-              className={`h-11 flex-1 rounded text-sm font-semibold transition ${
+              className={`h-11 flex-1 rounded-xl text-sm font-bold transition ${
                 activeView === "code"
-                  ? "bg-zinc-100 text-zinc-950"
-                  : "text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100"
+                  ? "bg-white text-indigo-700 shadow"
+                  : "text-slate-500 hover:bg-white/60"
               }`}
               onClick={() => setActiveView("code")}
               type="button"
@@ -184,10 +188,10 @@ export function MultiplayerDrawingRound({ guestId, room }: MultiplayerDrawingRou
               HTML / CSS Code
             </button>
             <button
-              className={`h-11 flex-1 rounded text-sm font-semibold transition ${
+              className={`h-11 flex-1 rounded-xl text-sm font-bold transition ${
                 activeView === "draw"
-                  ? "bg-emerald-400 text-zinc-950"
-                  : "text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100"
+                  ? "bg-white text-indigo-700 shadow"
+                  : "text-slate-500 hover:bg-white/60"
               }`}
               onClick={() => setActiveView("draw")}
               type="button"
@@ -216,9 +220,13 @@ export function MultiplayerDrawingRound({ guestId, room }: MultiplayerDrawingRou
           </div>
         </div>
 
-        <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-zinc-800 pt-4 text-sm text-zinc-500">
+        <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-indigo-100 pt-4 text-sm text-slate-500">
           <span>Players stay synced through the server timer.</span>
-          <Link className="text-zinc-300 hover:text-zinc-50" href="/join">
+          <Link
+            className="font-bold text-indigo-700 hover:text-indigo-900"
+            href="/join"
+            onClick={leaveRoom}
+          >
             Leave room
           </Link>
         </footer>

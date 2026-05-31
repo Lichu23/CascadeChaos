@@ -1,4 +1,12 @@
-export type RoomPhase = "lobby" | "drawing" | "reveal" | "voting" | "leaderboard" | "ended";
+export type RoomPhase =
+  | "lobby"
+  | "countdown"
+  | "drawing"
+  | "reveal"
+  | "voting"
+  | "leaderboard"
+  | "ended"
+  | "interrupted";
 
 export type RoomSettings = {
   roundTime: number;
@@ -66,11 +74,18 @@ export type PublicRoom = {
   phase: RoomPhase;
   hostId: string | null;
   settings: RoomSettings;
+  countdownEndsAt: number | null;
   players: RoomPlayer[];
   round: PublicRound | null;
+  interruptedReason: string | null;
 };
 
 export type RoomError = {
+  code: string;
+  message: string;
+};
+
+export type RoomClosedPayload = {
   code: string;
   message: string;
 };

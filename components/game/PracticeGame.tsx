@@ -10,6 +10,7 @@ import {
   type DrawingCanvasHandle,
 } from "@/components/game/DrawingCanvas";
 import { Button } from "@/components/ui/Button";
+import { useNavigationWarning } from "@/lib/navigation/use-navigation-warning";
 import type { Challenge } from "@/types/challenge";
 
 const ROUND_SECONDS = 90;
@@ -35,6 +36,11 @@ export function PracticeGame({ challenges }: PracticeGameProps) {
     () => Math.round((secondsLeft / ROUND_SECONDS) * 100),
     [secondsLeft],
   );
+
+  useNavigationWarning({
+    enabled: true,
+    message: "Leave practice mode? Your current challenge and drawing will restart if you come back.",
+  });
 
   useEffect(() => {
     if (phase !== "drawing") {
@@ -70,48 +76,48 @@ export function PracticeGame({ challenges }: PracticeGameProps) {
   };
 
   return (
-    <main className="min-h-screen bg-zinc-950 text-zinc-50">
-      <div className="mx-auto flex w-full max-w-7xl flex-col gap-5 px-4 py-5 sm:px-6 lg:px-8">
-        <header className="flex flex-col gap-4 border-b border-zinc-800 pb-5 lg:flex-row lg:items-end lg:justify-between">
+    <main className="min-h-screen bg-gradient-to-b from-violet-100 via-indigo-50 to-pink-100 text-slate-900">
+      <div className="mx-auto flex w-full max-w-5xl flex-col gap-5 px-4 py-5">
+        <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <p className="text-sm font-semibold uppercase text-emerald-300">
+            <p className="inline-flex rounded-full bg-white px-3 py-1.5 text-xs font-bold uppercase text-indigo-700">
               Practice mode
             </p>
-            <h1 className="mt-2 text-3xl font-semibold text-zinc-50 sm:text-4xl">
+            <h1 className="mt-3 text-3xl font-black text-indigo-950 sm:text-4xl">
               {challenge.title}
             </h1>
           </div>
           <div className="flex flex-wrap items-center gap-3">
-            <div className="min-w-28 rounded-md border border-zinc-800 bg-zinc-900 px-4 py-3 text-right">
-              <p className="text-xs uppercase text-zinc-500">Time</p>
-              <p className="text-2xl font-semibold tabular-nums text-zinc-50">
+            <div className={`min-w-28 rounded-full px-4 py-3 text-right ${secondsLeft <= 10 ? "animate-pulse bg-pink-500 text-white" : "bg-white text-indigo-950"}`}>
+              <p className="text-xs font-bold uppercase opacity-70">Time</p>
+              <p className="text-2xl font-black tabular-nums">
                 {secondsLeft}s
               </p>
             </div>
-            <div className="min-w-36 rounded-md border border-zinc-800 bg-zinc-900 px-4 py-3">
-              <p className="text-xs uppercase text-zinc-500">Challenge</p>
-              <p className="text-lg font-semibold text-zinc-50">
+            <div className="min-w-36 rounded-full bg-white px-4 py-3 text-indigo-950">
+              <p className="text-xs font-bold uppercase text-slate-500">Challenge</p>
+              <p className="text-lg font-black">
                 {challengeIndex + 1}/{challenges.length}
               </p>
             </div>
           </div>
         </header>
 
-        <div className="h-2 overflow-hidden rounded-full bg-zinc-800">
+        <div className="h-2 overflow-hidden rounded-full bg-white/70">
           <div
-            className="h-full bg-emerald-400 transition-all"
+            className="h-full bg-pink-500 transition-all"
             style={{ width: `${progress}%` }}
           />
         </div>
 
         {phase === "drawing" ? (
           <div className="flex min-h-0 flex-col gap-4">
-            <div className="flex rounded-md border border-zinc-800 bg-zinc-900 p-1">
+            <div className="flex rounded-2xl bg-slate-100 p-1">
               <button
-                className={`h-11 flex-1 rounded text-sm font-semibold transition ${
+                className={`h-11 flex-1 rounded-xl text-sm font-bold transition ${
                   activeView === "code"
-                    ? "bg-zinc-100 text-zinc-950"
-                    : "text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100"
+                    ? "bg-white text-indigo-700 shadow"
+                    : "text-slate-500 hover:bg-white/60"
                 }`}
                 onClick={() => setActiveView("code")}
                 type="button"
@@ -119,10 +125,10 @@ export function PracticeGame({ challenges }: PracticeGameProps) {
                 HTML / CSS Code
               </button>
               <button
-                className={`h-11 flex-1 rounded text-sm font-semibold transition ${
+                className={`h-11 flex-1 rounded-xl text-sm font-bold transition ${
                   activeView === "draw"
-                    ? "bg-emerald-400 text-zinc-950"
-                    : "text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100"
+                    ? "bg-white text-indigo-700 shadow"
+                    : "text-slate-500 hover:bg-white/60"
                 }`}
                 onClick={() => setActiveView("draw")}
                 type="button"
@@ -147,12 +153,12 @@ export function PracticeGame({ challenges }: PracticeGameProps) {
           </div>
         ) : (
           <section className="grid gap-5 lg:grid-cols-2">
-            <div className="rounded-md border border-zinc-800 bg-zinc-900 p-4">
+            <div className="rounded-3xl border border-indigo-100 bg-white p-4 shadow-[0_25px_60px_rgba(79,70,229,0.15)]">
               <div className="mb-3 flex items-center justify-between gap-3">
-                <h2 className="text-lg font-semibold">Your drawing</h2>
+                <h2 className="text-lg font-black text-indigo-950">Your drawing</h2>
                 <div className="flex gap-2">
                   <Link
-                    className="inline-flex h-11 items-center justify-center rounded-md bg-zinc-800 px-4 text-sm font-semibold text-zinc-50 transition hover:bg-zinc-700"
+                    className="inline-flex min-h-11 items-center justify-center rounded-2xl bg-indigo-50 px-4 text-sm font-bold text-indigo-800 transition hover:bg-indigo-100"
                     href="/"
                   >
                     Home
@@ -162,7 +168,7 @@ export function PracticeGame({ challenges }: PracticeGameProps) {
                   </Button>
                 </div>
               </div>
-              <div className="grid min-h-[360px] place-items-center overflow-hidden rounded bg-white">
+              <div className="grid min-h-[360px] place-items-center overflow-hidden rounded-2xl bg-amber-50">
                 {drawingUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img alt="Submitted drawing" className="h-full w-full object-contain" src={drawingUrl} />
@@ -173,9 +179,9 @@ export function PracticeGame({ challenges }: PracticeGameProps) {
                 )}
               </div>
             </div>
-            <div className="rounded-md border border-zinc-800 bg-zinc-900 p-4">
-              <h2 className="mb-3 text-lg font-semibold">Correct reveal</h2>
-              <div className="relative min-h-[360px] overflow-hidden rounded bg-zinc-950">
+            <div className="rounded-3xl border border-indigo-100 bg-white p-4 shadow-[0_25px_60px_rgba(79,70,229,0.15)]">
+              <h2 className="mb-3 text-lg font-black text-indigo-950">Correct reveal</h2>
+              <div className="relative min-h-[360px] overflow-hidden rounded-2xl bg-indigo-50">
                 <Image
                   alt={`${challenge.title} reveal`}
                   className="object-contain"
