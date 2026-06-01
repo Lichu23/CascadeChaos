@@ -8,7 +8,7 @@ let socket: Socket<ServerToClientEvents, ClientToServerEvents> | null = null;
 
 export function getSocket() {
   if (!socket) {
-    socket = io({
+    socket = io(process.env.NEXT_PUBLIC_SOCKET_URL || undefined, {
       autoConnect: false,
     });
   }
