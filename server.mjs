@@ -17,6 +17,10 @@ const REVEAL_TIME_MS = 10_000;
 const LEADERBOARD_TIME_MS = 5_000;
 const VOTING_TIME_MS = 30_000;
 const START_COUNTDOWN_MS = 3_000;
+const allowedOrigins = (process.env.SOCKET_CORS_ORIGINS || "")
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
 const CHALLENGE_IDS = [
   "crypto",
   "dashboard",
@@ -776,7 +780,11 @@ const httpServer = createServer((req, res) => {
 
 const io = new Server(httpServer, {
   cors: {
-    origin: dev ? ["http://localhost:3000", "http://127.0.0.1:3000"] : false,
+    origin: dev
+      ? ["http://localhost:3000", "http://127.0.0.1:3000"]
+      : allowedOrigins.length > 0
+        ? allowedOrigins
+        : false,
   },
 });
 
